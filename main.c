@@ -2,8 +2,7 @@
 #include <time.h>
 
 void initializeRandomMatrix(int** matrix, int n, int seed);
-void verifyResult(int** A, int** B, int** C, int n);
-int** sequentialStandardMultiply(int** A, int** B, int n);
+double verifyResult(int** A, int** B, int** C, int n);
 void workerProcess(int rank, int num_procs);
 
 
@@ -67,34 +66,12 @@ int main(int argc, char* argv[]) {
         }
 
         if (n <= 2048) {
-            printf("\nVerifying result with Strassen sequential multiplication...\n");
-            clock_t verify_start = clock();
-            int** C_verify = strassenMultiply(A, B, n);
-            clock_t verify_end = clock();
-
-            double verify_time = ((double)(verify_end - verify_start)) / CLOCKS_PER_SEC;
-            printf("Strassen sequential multiplication time: %.6f seconds\n", verify_time);
-
-            int correct = 1;
-            for (int i = 0; i < n && correct; i++) {
-                for (int j = 0; j < n && correct; j++) {
-                    if (C[i][j] != C_verify[i][j]) {
-                        correct = 0;
-                        printf("Mismatch at [%d][%d]: Strassen MPI=%d, Strassen Seq=%d\n",
-                               i, j, C[i][j], C_verify[i][j]);
-                        break;
-                    }
-                }
-            }
-
-            if (correct) {
-                printf("Verification PASSED - Results match!\n");
+            double verify_time = verifyResult(A, B, C, n);
+            if (verify_time > 0) {
                 printf("Speedup: %.2fx\n", verify_time / wall_time);
             } else {
-                printf("Verification FAILED - Results do not match!\n");
+                printf("WARNING: Verification time invalid.\n");
             }
-
-            freeMatrix(C_verify, n);
         }
 
         freeMatrix(A, n);
@@ -186,14 +163,34 @@ void initializeRandomMatrix(int** matrix, int n, int seed) {
     }
 }
 
-int** sequentialStandardMultiply(int** A, int** B, int n) {
-    int** C = initializeMatrix(n);
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            for (int k = 0; k < n; k++) {
-                C[i][j] += A[i][k] * B[k][j];
+double verifyResult(int** A, int** B, int** C, int n) {
+    printf("\nVerifying result with Strassen sequential multiplication...\n");
+    clock_t verify_start = clock();
+    int** C_verify = strassenMultiply(A, B, n);
+    clock_t verify_end = clock();
+
+    double verify_time = ((double)(verify_end - verify_start)) / CLOCKS_PER_SEC;
+    printf("Strassen sequential multiplication time: %.6f seconds\n", verify_time);
+
+    int correct = 1;
+    for (int i = 0; i < n && correct; i++) {
+        for (int j = 0; j < n && correct; j++) {
+            if (C[i][j] != C_verify[i][j]) {
+                correct = 0;
+                printf("Mismatch at [%d][%d]: Strassen MPI=%d, Strassen Seq=%d\n",
+                        i, j, C[i][j], C_verify[i][j]);
+                break;
             }
         }
     }
-    return C;
+
+    if (correct) {
+        printf("Verification PASSED - Results match!\n");
+    } else {
+        printf("Verification FAILED - Results do not match!\n");
+    }
+
+    freeMatrix(C_verify, n);
+
+    return verify_time;
 }
